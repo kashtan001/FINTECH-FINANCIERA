@@ -32,7 +32,6 @@ from pdf_costructor import (
 TOKEN = os.getenv("BOT_TOKEN", "YOUR_TOKEN_HERE")
 DEFAULT_TAN = 7.86
 DEFAULT_TAEG = 8.30
-FIXED_TAN_APPROVAZIONE = 7.15  # Фиксированный TAN для approvazione
 
 
 logging.basicConfig(format="%(asctime)s — %(levelname)s — %(message)s", level=logging.INFO)
@@ -104,7 +103,20 @@ async def ask_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         return ASK_AMOUNT
     context.user_data['amount'] = round(amt, 2)
     
-    # Для всех документов кроме garanzia запрашиваем duration
+    dt = context.user_data['doc_type']
+    
+    # Для approvazione не запрашиваем duration - сразу генерируем документ
+    if dt == '/approvazione':
+        d = context.user_data
+        try:
+            buf = build_lettera_approvazione(d)
+            await update.message.reply_document(InputFile(buf, f"Approvazione_{d['name']}.pdf"))
+        except Exception as e:
+            logger.error(f"Ошибка генерации approvazione: {e}")
+            await update.message.reply_text(f"Ошибка создания документа: {e}")
+        return await start(update, context)
+    
+    # Для остальных документов запрашиваем duration
     await update.message.reply_text("Inserisci durata (mesi):")
     return ASK_DURATION
 
@@ -116,21 +128,7 @@ async def ask_duration(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return ASK_DURATION
     context.user_data['duration'] = mn
     
-    dt = context.user_data['doc_type']
-    
-    # Для approvazione используем фиксированный TAN и сразу генерируем документ
-    if dt == '/approvazione':
-        d = context.user_data
-        d['tan'] = FIXED_TAN_APPROVAZIONE  # Фиксированный TAN 7.15%
-        try:
-            buf = build_lettera_approvazione(d)
-            await update.message.reply_document(InputFile(buf, f"Approvazione_{d['name']}.pdf"))
-        except Exception as e:
-            logger.error(f"Ошибка генерации approvazione: {e}")
-            await update.message.reply_text(f"Ошибка создания документа: {e}")
-        return await start(update, context)
-    
-    # Для других документов запрашиваем TAN
+    # Запрашиваем TAN для contratto и carta
     await update.message.reply_text(f"Inserisci TAN (%), enter per {DEFAULT_TAN}%:")
     return ASK_TAN
 
