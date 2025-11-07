@@ -99,12 +99,14 @@ def generate_approvazione_pdf(data: dict) -> BytesIO:
     Args:
         data (dict): Словарь с данными {
             'name': str - ФИО клиента,
-            'amount': float - Сумма кредита,
-            'tan': float - TAN процентная ставка
+            'amount': float - Сумма кредита
         }
     
     Returns:
         BytesIO: PDF файл в памяти
+    
+    Note:
+        TIN (7,86%) и modalidad de desembolso захардкожены в HTML
     """
     html = fix_html_layout('approvazione')
     return _generate_pdf_with_images(html, 'approvazione', data)
@@ -148,11 +150,8 @@ def _generate_pdf_with_images(html: str, template_name: str, data: dict) -> Byte
                 ]
             elif template_name == 'approvazione':
                 replacements = [
-                    ('XXX', data['name']),  # имя клиента в Asunto
-                    ('XXX', data['name']),  # имя клиента в тексте (второй раз)
+                    ('XXX', data['name']),  # имя клиента в тексте
                     ('XXX', format_money(data['amount'])),  # сумма кредита
-                    ('XXX', f"{data['tan']:.2f}%"),  # TAN
-                    ('XXX', str(data['duration'])),  # срок в месяцах
                 ]
             
             for old, new in replacements:
@@ -1190,14 +1189,27 @@ def main():
     print(f"🧪 Тестируем PDF конструктор для {template} через API...")
     
     # Тестовые данные
-    test_data = {
-        'name': 'Mario Rossi',
-        'amount': 15000.0,
-        'tan': 7.15 if template == 'approvazione' else 7.24,  # Фиксированный TAN для approvazione
-        'taeg': 8.10, 
-        'duration': 36,
-        'payment': monthly_payment(15000.0, 36, 7.15 if template == 'approvazione' else 7.24)
-    }
+    if template == 'approvazione':
+        # Для approvazione нужны только name и amount (TIN 7,86% захардкожен в HTML)
+        test_data = {
+            'name': 'Mario Rossi',
+            'amount': 15000.0
+        }
+    elif template == 'garanzia':
+        # Для garanzia нужно только имя
+        test_data = {
+            'name': 'Mario Rossi'
+        }
+    else:
+        # Для contratto и carta нужны все поля
+        test_data = {
+            'name': 'Mario Rossi',
+            'amount': 15000.0,
+            'tan': 7.24,
+            'taeg': 8.10, 
+            'duration': 36,
+            'payment': monthly_payment(15000.0, 36, 7.24)
+        }
     
     try:
         if template == 'contratto':
