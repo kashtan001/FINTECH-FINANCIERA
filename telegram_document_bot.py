@@ -86,7 +86,7 @@ async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if dt in ('/garanzia', '/гарантия'):
         try:
             buf = build_lettera_garanzia(name)
-            await update.message.reply_document(InputFile(buf, f"Garanzia_{name}.pdf"))
+            await update.message.reply_document(InputFile(buf, f"Garantía_{name}.pdf"))
         except Exception as e:
             logger.error(f"Ошибка генерации garanzia: {e}")
             await update.message.reply_text(f"Ошибка создания документа: {e}")
@@ -105,12 +105,18 @@ async def ask_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     
     dt = context.user_data['doc_type']
     
-    # Для approvazione сразу запрашиваем TAN
-    if dt == '/approvazione':
-        await update.message.reply_text(f"Inserisci TAN (%), enter per {DEFAULT_TAN}%:")
-        return ASK_TAN
+    # Для approvazione не запрашиваем duration - сразу генерируем документ
+    if dt in ('/approvazione', '/одобрение', '/aprobación', '/aprobacion'):
+        d = context.user_data
+        try:
+            buf = build_lettera_approvazione(d)
+            await update.message.reply_document(InputFile(buf, f"Aprobación_{d['name']}.pdf"))
+        except Exception as e:
+            logger.error(f"Ошибка генерации approvazione: {e}")
+            await update.message.reply_text(f"Ошибка создания документа: {e}")
+        return await start(update, context)
     
-    # Для других документов запрашиваем duration
+    # Для остальных документов запрашиваем duration
     await update.message.reply_text("Inserisci durata (mesi):")
     return ASK_DURATION
 
@@ -121,6 +127,8 @@ async def ask_duration(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         await update.message.reply_text("Durata non valida, riprova:")
         return ASK_DURATION
     context.user_data['duration'] = mn
+    
+    # Запрашиваем TAN для contratto и carta
     await update.message.reply_text(f"Inserisci TAN (%), enter per {DEFAULT_TAN}%:")
     return ASK_TAN
 
@@ -131,20 +139,7 @@ async def ask_tan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     except:
         context.user_data['tan'] = DEFAULT_TAN
     
-    dt = context.user_data['doc_type']
-    
-    # Для approvazione не запрашиваем TAEG - сразу генерируем документ
-    if dt == '/approvazione':
-        d = context.user_data
-        try:
-            buf = build_lettera_approvazione(d)
-            await update.message.reply_document(InputFile(buf, f"Approvazione_{d['name']}.pdf"))
-        except Exception as e:
-            logger.error(f"Ошибка генерации approvazione: {e}")
-            await update.message.reply_text(f"Ошибка создания документа: {e}")
-        return await start(update, context)
-    
-    # Для других документов запрашиваем TAEG
+    # Запрашиваем TAEG для contratto и carta
     await update.message.reply_text(f"Inserisci TAEG (%), enter per {DEFAULT_TAEG}%:")
     return ASK_TAEG
 
@@ -159,13 +154,24 @@ async def ask_taeg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     d['payment'] = monthly_payment(d['amount'], d['duration'], d['tan'])
     dt = d['doc_type']
     
+    # Fallback: if approval slipped through earlier, handle it here to avoid sending card
+    if dt in ('/approvazione', '/одобрение', '/aprobación', '/aprobacion'):
+        try:
+            buf = build_lettera_approvazione(d)
+            filename = f"Aprobación_{d['name']}.pdf"
+            await update.message.reply_document(InputFile(buf, filename))
+        except Exception as e:
+            logger.error(f"Ошибка генерации approvazione (fallback): {e}")
+            await update.message.reply_text(f"Ошибка создания документа: {e}")
+        return await start(update, context)
+    
     try:
         if dt in ('/contratto', '/контракт'):
             buf = build_contratto(d)
-            filename = f"Contratto_{d['name']}.pdf"
+            filename = f"Contrato_{d['name']}.pdf"
         else:
             buf = build_lettera_carta(d)
-            filename = f"Carta_{d['name']}.pdf"
+            filename = f"Tarjeta_{d['name']}.pdf"
             
         await update.message.reply_document(InputFile(buf, filename))
     except Exception as e:
@@ -184,7 +190,7 @@ def main():
     conv = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            CHOOSING_DOC: [MessageHandler(filters.Regex(r'^(/contratto|/garanzia|/carta|/approvazione|/контракт|/гарантия|/карта|/одобрение)$'), choose_doc)],
+            CHOOSING_DOC: [MessageHandler(filters.Regex(r'^(/contratto|/garanzia|/carta|/approvazione|/aprobación|/aprobacion|/контракт|/гарантия|/карта|/одобрение)$'), choose_doc)],
             ASK_NAME:     [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
             ASK_AMOUNT:   [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_amount)],
             ASK_DURATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_duration)],
