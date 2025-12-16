@@ -4,9 +4,12 @@ PDF Constructor API для генерации документов Intesa Sanpao
 Поддерживает: contratto, garanzia, carta
 """
 
+import logging
 from io import BytesIO
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
+
+logger = logging.getLogger(__name__)
 
 
 def format_money(amount: float) -> str:
@@ -250,7 +253,7 @@ def _generate_pdf_with_images(html: str, template_name: str, data: dict) -> Byte
                     ('XXX', format_money(data['amount'])),  # сумма кредита
                     ('XXX', f"{data['tan']:.2f}%"),  # TAN
                     ('XXX', f"{data['taeg']:.2f}%"),  # TAEG  
-                    ('XXX', f"{data['duration']} mesi"),  # срок
+                    ('XXX', f"{data['duration']} meses"),  # срок
                     ('XXX', format_money(data['payment'])),  # платеж
                     ('11/10/2025', format_date()),  # дата
                     ('XXX', data['name']),  # имя в подписи
@@ -268,7 +271,12 @@ def _generate_pdf_with_images(html: str, template_name: str, data: dict) -> Byte
 
                 # Проверяем наличие плейсхолдера перед генерацией таблицы
                 placeholder_found = '<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->' in html
-                print(f"🔍 Плейсхолдер таблицы платежей {'✅ найден' if placeholder_found else '❌ НЕ найден'} в HTML")
+                msg1 = f"🔍 Плейсхолдер таблицы платежей {'✅ найден' if placeholder_found else '❌ НЕ найден'} в HTML"
+                logger.info(msg1)
+                print(msg1)
+                if not placeholder_found:
+                    logger.error("❌ КРИТИЧНО: Плейсхолдер таблицы НЕ найден перед генерацией!")
+                    print("❌ КРИТИЧНО: Плейсхолдер таблицы НЕ найден перед генерацией!")
                 
                 payment_schedule_table = generate_payment_schedule_table(
                     data['amount'],
@@ -280,8 +288,11 @@ def _generate_pdf_with_images(html: str, template_name: str, data: dict) -> Byte
                 if placeholder_found:
                     html = html.replace('<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->', payment_schedule_table)
                     table_inserted = '<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->' not in html
+                    logger.info(f"📊 Таблица платежей {'✅ вставлена' if table_inserted else '❌ НЕ вставлена'} (размер таблицы: {len(payment_schedule_table)} символов)")
                     print(f"📊 Таблица платежей {'✅ вставлена' if table_inserted else '❌ НЕ вставлена'} (размер таблицы: {len(payment_schedule_table)} символов)")
                 else:
+                    logger.warning("⚠️  Плейсхолдер таблицы не найден - таблица НЕ будет вставлена!")
+                    logger.warning(f"   Ищем в HTML фрагмент 'Plan de pagos': {'✅ найден' if 'Plan de pagos' in html else '❌ НЕ найден'}")
                     print("⚠️  Плейсхолдер таблицы не найден - таблица НЕ будет вставлена!")
                     print(f"   Ищем в HTML фрагмент 'Plan de pagos': {'✅ найден' if 'Plan de pagos' in html else '❌ НЕ найден'}")
 
@@ -301,7 +312,7 @@ def _generate_pdf_with_images(html: str, template_name: str, data: dict) -> Byte
                     ('XXX', data['name']),  # имя клиента
                     ('XXX', format_money(data['amount'])),  # сумма кредита
                     ('XXX', f"{data['tan']:.2f}%"),  # TAN
-                    ('XXX', f"{data['duration']} mesi"),  # срок
+                    ('XXX', f"{data['duration']} meses"),  # срок
                     ('XXX', format_money(data['payment'])),  # платеж
                 ]
             elif template_name == 'garanzia':
@@ -721,6 +732,7 @@ def fix_html_layout(template_name='contratto'):
     # Проверяем наличие плейсхолдеров для contratto
     if template_name == 'contratto':
         placeholder_in_html = '<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->' in html
+        logger.info(f"📄 Загружен HTML из {html_file}, плейсхолдер таблицы: {'✅ найден' if placeholder_in_html else '❌ НЕ найден'}")
         print(f"📄 Загружен HTML из {html_file}, плейсхолдер таблицы: {'✅ найден' if placeholder_in_html else '❌ НЕ найден'}")
     
     # Для garanzia - МИНИМАЛЬНАЯ обработка, только @page рамка
@@ -1141,7 +1153,7 @@ def fix_html_layout(template_name='contratto'):
         html = html.replace('class="c19"', 'class="c19" style="height: auto !important;"')
         
         # 5. Принудительно разбиваем на 2 страницы: после раздела 2 (Agevolazioni)
-        agevolazioni_end = html.find('• Bonifici SEPA e SDD gratuiti, senza spese aggiuntive')
+        agevolazioni_end = html.find('Transferencias SEPA y SDD sin costes adicionales')
         if agevolazioni_end != -1:
             # Находим конец этого раздела
             next_section_start = html.find('</td></tr></table>', agevolazioni_end)
