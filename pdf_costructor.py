@@ -1033,6 +1033,12 @@ def fix_html_layout(template_name='contratto'):
         background: none !important;
     }
 
+    /* Разрыв страницы перед пунктом 7. Firmas */
+    .section-7-firme {
+        page-break-before: always !important;
+        margin-top: 0 !important;
+    }
+
     /* ТАБЛИЦА С ПОДПИСЯМИ И ПЕЧАТЬЮ (как в TEST +) */
     .signatures-tables-wrapper {
         position: relative !important;
