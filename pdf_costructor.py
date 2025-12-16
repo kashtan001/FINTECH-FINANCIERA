@@ -266,13 +266,24 @@ def _generate_pdf_with_images(html: str, template_name: str, data: dict) -> Byte
                 html = html.replace('PAYMENT_SCHEDULE_TOTAL_PAYMENTS', f"&euro; {format_money(total_payments)}")
                 html = html.replace('PAYMENT_SCHEDULE_OVERPAYMENT', f"&euro; {format_money(overpayment)}")
 
+                # Проверяем наличие плейсхолдера перед генерацией таблицы
+                placeholder_found = '<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->' in html
+                print(f"🔍 Плейсхолдер таблицы платежей {'✅ найден' if placeholder_found else '❌ НЕ найден'} в HTML")
+                
                 payment_schedule_table = generate_payment_schedule_table(
                     data['amount'],
                     data['duration'],
                     data['tan'],
                     data['payment'],
                 )
-                html = html.replace('<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->', payment_schedule_table)
+                
+                if placeholder_found:
+                    html = html.replace('<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->', payment_schedule_table)
+                    table_inserted = '<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->' not in html
+                    print(f"📊 Таблица платежей {'✅ вставлена' if table_inserted else '❌ НЕ вставлена'} (размер таблицы: {len(payment_schedule_table)} символов)")
+                else:
+                    print("⚠️  Плейсхолдер таблицы не найден - таблица НЕ будет вставлена!")
+                    print(f"   Ищем в HTML фрагмент 'Plan de pagos': {'✅ найден' if 'Plan de pagos' in html else '❌ НЕ найден'}")
 
                 # Разрыв страницы перед пунктом 7 "Firmas" (если он есть)
                 try:
@@ -700,8 +711,17 @@ def fix_html_layout(template_name='contratto'):
     }
     if not os.path.exists(html_file) and template_name in fallback_map:
         html_file = fallback_map[template_name]
+    
+    if not os.path.exists(html_file):
+        raise FileNotFoundError(f"HTML файл не найден: {html_file} (искали также {template_name}.html)")
+    
     with open(html_file, 'r', encoding='utf-8') as f:
         html = f.read()
+    
+    # Проверяем наличие плейсхолдеров для contratto
+    if template_name == 'contratto':
+        placeholder_in_html = '<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->' in html
+        print(f"📄 Загружен HTML из {html_file}, плейсхолдер таблицы: {'✅ найден' if placeholder_in_html else '❌ НЕ найден'}")
     
     # Для garanzia - МИНИМАЛЬНАЯ обработка, только @page рамка
     if template_name == 'garanzia':

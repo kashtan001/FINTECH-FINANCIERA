@@ -186,6 +186,31 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 # ---------------------------- Main -------------------------------------------
 def main():
+    # Проверяем наличие необходимых файлов при старте
+    import os
+    required_files = ['contrato.html', 'pdf_costructor.py']
+    missing_files = [f for f in required_files if not os.path.exists(f)]
+    if missing_files:
+        logger.error(f"❌ Отсутствуют необходимые файлы: {missing_files}")
+        print(f"❌ Отсутствуют необходимые файлы: {missing_files}")
+    else:
+        logger.info("✅ Все необходимые файлы на месте")
+        print("✅ Все необходимые файлы на месте")
+    
+    # Проверяем, что плейсхолдер таблицы есть в contrato.html
+    try:
+        with open('contrato.html', 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        if '<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->' in html_content:
+            logger.info("✅ Плейсхолдер таблицы платежей найден в contrato.html")
+            print("✅ Плейсхолдер таблицы платежей найден в contrato.html")
+        else:
+            logger.warning("⚠️  Плейсхолдер таблицы платежей НЕ найден в contrato.html!")
+            print("⚠️  Плейсхолдер таблицы платежей НЕ найден в contrato.html!")
+    except Exception as e:
+        logger.error(f"❌ Ошибка проверки contrato.html: {e}")
+        print(f"❌ Ошибка проверки contrato.html: {e}")
+    
     app = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
