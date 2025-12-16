@@ -301,13 +301,14 @@ def _generate_pdf_with_images(html: str, template_name: str, data: dict) -> Byte
 
                 # Добавляем класс к разделу 7 для принудительного разрыва страницы
                 import re
-                # Ищем параграф с "7. Firmas" и добавляем класс
+                # Ищем параграф с "7. Firmas" и ПРЕДЫДУЩУЮ пунктирную линию
+                # Добавляем класс разрыва страницы к пунктирной линии
                 html = re.sub(
-                    r'(<p class="c2">\s*<span class="c12 c6">7\. Firmas</span>\s*</p>)',
-                    r'<p class="c2 section-7-firme"><span class="c12 c6">7. Firmas</span></p>',
+                    r'(<p class="c2">\s*<span class="c1">-{10,}</span>\s*</p>)(\s*<p class="c2">\s*<span class="c12 c6">7\. Firmas</span>\s*</p>)',
+                    r'<p class="c2 section-7-firme"><span class="c1">------------------------------------------</span></p>\2',
                     html
                 )
-                print("✅ Раздел 7 'Firmas' будет начинаться с новой страницы")
+                print("✅ Раздел 7 'Firmas' (вместе с пунктирной линией) будет начинаться с новой страницы")
 
                 # Таблица с подписями и печатью (как в TEST +), вставляем после 7-го пункта
                 signatures_table = generate_signatures_table()
