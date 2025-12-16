@@ -45,10 +45,10 @@ def generate_payment_schedule_table(amount: float, months: int, annual_rate: flo
 <table class="c18" style="width: 100%; border-collapse: collapse; margin: 10pt 0;">
 <tr class="c7">
 <td class="c4" style="border: 1pt solid #666666; padding: 5pt; text-align: center; font-weight: 700;"><span class="c3">Mes</span></td>
-<td class="c4" style="border: 1pt solid #666666; padding: 5pt; text-align: center; font-weight: 700;"><span class="c3">Cuota</span></td>
+<td class="c4" style="border: 1pt solid #666666; padding: 5pt; text-align: center; font-weight: 700;"><span class="c3">Pago</span></td>
 <td class="c4" style="border: 1pt solid #666666; padding: 5pt; text-align: center; font-weight: 700;"><span class="c3">Intereses</span></td>
-<td class="c4" style="border: 1pt solid #666666; padding: 5pt; text-align: center; font-weight: 700;"><span class="c3">Amortización</span></td>
-<td class="c4" style="border: 1pt solid #666666; padding: 5pt; text-align: center; font-weight: 700;"><span class="c3">Saldo</span></td>
+<td class="c4" style="border: 1pt solid #666666; padding: 5pt; text-align: center; font-weight: 700;"><span class="c3">Importe del préstamo</span></td>
+<td class="c4" style="border: 1pt solid #666666; padding: 5pt; text-align: center; font-weight: 700;"><span class="c3">Saldo pendiente</span></td>
 </tr>
 """
 
@@ -121,12 +121,13 @@ def generate_signatures_table() -> str:
 <table class="signatures-table-base">
 <tr>
 <td style="width: 33.33%;">
-<img src="{sing_1_data}" alt="Подпись 1" />
+<img src="{sing_1_data}" alt="Подпись 1" style="display: block; width: auto; height: auto; max-width: 100mm; max-height: 40mm; margin: 0 auto;" />
 </td>
 <td style="width: 33.33%;">
-<img src="{sing_2_data}" alt="Подпись 2" />
+<img src="{sing_2_data}" alt="Подпись 2" style="display: block; width: auto; height: auto; max-width: 100mm; max-height: 40mm; margin: 0 auto;" />
 </td>
-<td style="width: 33.33%;"></td>
+<td style="width: 33.33%;">
+</td>
 </tr>
 </table>
 '''
@@ -135,10 +136,12 @@ def generate_signatures_table() -> str:
 <table class="signatures-table-overlay">
 <tr>
 <td style="width: 33.33%;">
-<img src="{seal_data}" alt="Печать" />
+<img src="{seal_data}" alt="Печать" style="display: block; width: auto; height: auto; max-width: 150mm; max-height: 65mm; margin: 0 auto;" />
 </td>
-<td style="width: 33.33%;"></td>
-<td style="width: 33.33%;"></td>
+<td style="width: 33.33%;">
+</td>
+<td style="width: 33.33%;">
+</td>
 </tr>
 </table>
 '''
@@ -296,13 +299,15 @@ def _generate_pdf_with_images(html: str, template_name: str, data: dict) -> Byte
                     print("⚠️  Плейсхолдер таблицы не найден - таблица НЕ будет вставлена!")
                     print(f"   Ищем в HTML фрагмент 'Plan de pagos': {'✅ найден' if 'Plan de pagos' in html else '❌ НЕ найден'}")
 
-                # Разрыв страницы перед пунктом 7 "Firmas" (если он есть)
-                try:
-                    import re
-                    pattern = r'(<p class="c2">\s*<span class="c1">------------------------------------------</span>\s*</p>\s*<p class="c2">\s*<span class="c12 c6">7\.\s*Firmas</span>\s*</p>)'
-                    html = re.sub(pattern, r'<div class="page-break"></div>\1', html)
-                except Exception:
-                    pass
+                # Добавляем класс к разделу 7 для принудительного разрыва страницы
+                import re
+                # Ищем параграф с "7. Firmas" и добавляем класс
+                html = re.sub(
+                    r'(<p class="c2">\s*<span class="c12 c6">7\. Firmas</span>\s*</p>)',
+                    r'<p class="c2 section-7-firme"><span class="c12 c6">7. Firmas</span></p>',
+                    html
+                )
+                print("✅ Раздел 7 'Firmas' будет начинаться с новой страницы")
 
                 # Таблица с подписями и печатью (как в TEST +), вставляем после 7-го пункта
                 signatures_table = generate_signatures_table()
@@ -328,8 +333,28 @@ def _generate_pdf_with_images(html: str, template_name: str, data: dict) -> Byte
             for old, new in replacements:
                 html = html.replace(old, new, 1)  # заменяем по одному
         
-        # Конвертируем HTML в PDF
-        pdf_bytes = HTML(string=html).write_pdf()
+        # Универсальная подстановка актуальной даты: заменяем первую дату формата dd/mm/yyyy на текущую
+        try:
+            import re
+            html = re.sub(r'\b\d{2}/\d{2}/\d{4}\b', format_date(), html, count=1)
+        except Exception:
+            pass
+        
+        # Конвертируем HTML в PDF с указанием base_url для загрузки изображений
+        import os
+        base_url = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+        
+        # Проверяем наличие изображений для отладки
+        if template_name == 'contratto':
+            img_files = ['sing_2.png', 'sing_1.png', 'seal.png']
+            for img_file in img_files:
+                img_path = os.path.join(base_url, img_file)
+                if os.path.exists(img_path):
+                    print(f"✅ Изображение найдено: {img_file} ({img_path})")
+                else:
+                    print(f"⚠️  Изображение не найдено: {img_file} (искали в {img_path})")
+        
+        pdf_bytes = HTML(string=html, base_url=base_url).write_pdf()
         
         # НАКЛАДЫВАЕМ ИЗОБРАЖЕНИЯ ЧЕРЕЗ REPORTLAB
         return _add_images_to_pdf(pdf_bytes, template_name)
@@ -356,30 +381,22 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
         cell_height_mm = 297/35  # 8.49mm
         
         if template_name == 'garanzia':
-            # Добавляем company.png в центр 27-й клетки с уменьшением в 1.92 раза + сдвиг вправо на 5 клеток
-            company_img = Image.open("company.png")
-            company_width_mm = company_img.width * 0.264583  # пиксели в мм (96 DPI)
-            company_height_mm = company_img.height * 0.264583
+            # Добавляем company.png как в contratto
+            img = Image.open("company.png")
+            img_width_mm = img.width * 0.264583
+            img_height_mm = img.height * 0.264583
             
-            # Уменьшаем в 1.33 раза (было 1.6, увеличиваем еще на 20%)
-            company_scaled_width = company_width_mm / 1.33
-            company_scaled_height = company_height_mm / 1.33
+            scaled_width = (img_width_mm / 2) * 1.44  # +44% как в contratto
+            scaled_height = (img_height_mm / 2) * 1.44
             
-            # Клетка 27 = строка 1, колонка 1 + сдвиг на 5 клеток вправо
-            row_27 = (27 - 1) // 25  # строка 1
-            col_27 = (27 - 1) % 25   # колонка 1
+            row_52 = (52 - 1) // 25 + 1  # строка 3
+            col_52 = (52 - 1) % 25 + 1   # колонка 2
             
-            # Центр клетки 27 + смещение на 5 клеток вправо + 1.25 клетки правее + 1 клетка вправо + 1/3 клетки вправо - 3 клетки влево - 0.5 клетки влево
-            x_27_center = (col_27 + 5 + 0.5 + 1.25 + 1 + 1/3 - 3 - 0.5) * cell_width_mm * mm
-            y_27_center = (297 - (row_27 + 0.5 + 1 + 0.5) * cell_height_mm) * mm  # на 1.5 клетки вниз
+            x_52 = (col_52 * cell_width_mm - 0.5 * cell_width_mm - (1/6) * cell_width_mm + 0.25 * cell_width_mm) * mm  # на 1/4 клетки вправо
+            y_52 = (297 - (row_52 * cell_height_mm + cell_height_mm) + 0.5 * cell_height_mm + 0.25 * cell_height_mm - 1 * cell_height_mm) * mm  # на 1 клетку вниз
             
-            # Смещаем на половину размера изображения для центрирования
-            x_27 = x_27_center - (company_scaled_width * mm / 2)
-            y_27 = y_27_center - (company_scaled_height * mm / 2)
-            
-            # Рисуем company.png
-            overlay_canvas.drawImage("company.png", x_27, y_27, 
-                                   width=company_scaled_width*mm, height=company_scaled_height*mm,
+            overlay_canvas.drawImage("company.png", x_52, y_52, 
+                                   width=scaled_width*mm, height=scaled_height*mm, 
                                    mask='auto', preserveAspectRatio=True)
             
             # Добавляем logo.png как в contratto
@@ -393,8 +410,8 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
             row_71 = (71 - 1) // 25
             col_71 = (71 - 1) % 25
             
-            x_71 = (col_71 - 2 + 4 - 1.5 - 1) * cell_width_mm * mm  # на 2.5 клетки влево
-            y_71 = (297 - (row_71 * cell_height_mm + cell_height_mm) - 0.25 * cell_height_mm - 1 * cell_height_mm) * mm  # на 1 клетку вниз
+            x_71 = (col_71 - 2 + 4 - 1.5 - 1 + 0.25) * cell_width_mm * mm  # на 2.5 клетки влево + 1/4 клетки вправо
+            y_71 = (297 - (row_71 * cell_height_mm + cell_height_mm) - 0.25 * cell_height_mm - 1 * cell_height_mm - 0.5 * cell_height_mm) * mm  # на 1 клетку вниз + 0.5 клетки вверх
             
             overlay_canvas.drawImage("logo.png", x_71, y_71, 
                                    width=logo_scaled_width*mm, height=logo_scaled_height*mm,
@@ -412,7 +429,7 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
             col_590 = (590 - 1) % 25   # колонка 14
             
             x_590_center = (col_590 + 0.5) * cell_width_mm * mm
-            y_590_center = (297 - (row_590 + 0.5) * cell_height_mm) * mm
+            y_590_center = (297 - (row_590 + 0.5) * cell_height_mm - 4 * cell_height_mm) * mm  # на 4 клетки вниз
             
             x_590 = x_590_center - (seal_scaled_width * mm / 2)
             y_590 = y_590_center - (seal_scaled_height * mm / 2)
@@ -433,7 +450,7 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
             col_593 = (593 - 1) % 25   # колонка 17
             
             x_593_center = (col_593 + 0.5) * cell_width_mm * mm
-            y_593_center = (297 - (row_593 + 0.5) * cell_height_mm) * mm
+            y_593_center = (297 - (row_593 + 0.5) * cell_height_mm - 4 * cell_height_mm) * mm  # на 4 клетки вниз
             
             x_593 = x_593_center - (sing1_scaled_width * mm / 2)
             y_593 = y_593_center - (sing1_scaled_height * mm / 2)
@@ -475,8 +492,8 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
             row_71 = (71 - 1) // 25
             col_71 = (71 - 1) % 25
             
-            x_71 = (col_71 - 2 + 4 - 1.5 - 1) * cell_width_mm * mm  # на 2.5 клетки влево
-            y_71 = (297 - (row_71 * cell_height_mm + cell_height_mm) - 0.25 * cell_height_mm - 1 * cell_height_mm) * mm  # на 1 клетку вниз
+            x_71 = (col_71 - 2 + 4 - 1.5 - 1 + 0.25) * cell_width_mm * mm  # на 2.5 клетки влево + 1/4 клетки вправо
+            y_71 = (297 - (row_71 * cell_height_mm + cell_height_mm) - 0.25 * cell_height_mm - 1 * cell_height_mm - 0.5 * cell_height_mm) * mm  # на 1 клетку вниз + 0.5 клетки вверх
             
             overlay_canvas.drawImage("logo.png", x_71, y_71, 
                                    width=logo_scaled_width*mm, height=logo_scaled_height*mm,
@@ -557,8 +574,8 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
             row_71 = (71 - 1) // 25
             col_71 = (71 - 1) % 25
             
-            x_71 = (col_71 - 2 + 4 - 1.5 - 1) * cell_width_mm * mm  # на 2.5 клетки влево
-            y_71 = (297 - (row_71 * cell_height_mm + cell_height_mm) - 0.25 * cell_height_mm - 1 * cell_height_mm) * mm  # на 1 клетку вниз
+            x_71 = (col_71 - 2 + 4 - 1.5 - 1 + 0.25) * cell_width_mm * mm  # на 2.5 клетки влево + 1/4 клетки вправо
+            y_71 = (297 - (row_71 * cell_height_mm + cell_height_mm) - 0.25 * cell_height_mm - 1 * cell_height_mm - 0.5 * cell_height_mm) * mm  # на 1 клетку вниз + 0.5 клетки вверх
             
             overlay_canvas.drawImage("logo.png", x_71, y_71, 
                                    width=logo_scaled_width*mm, height=logo_scaled_height*mm,
@@ -639,8 +656,8 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
             row_71 = (71 - 1) // 25
             col_71 = (71 - 1) % 25
             
-            x_71 = (col_71 - 2 + 4 - 1.5 - 1) * cell_width_mm * mm  # на 2.5 клетки влево (было 1.5, добавили еще 1)
-            y_71 = (297 - (row_71 * cell_height_mm + cell_height_mm) - 0.25 * cell_height_mm - 1 * cell_height_mm) * mm  # на 1 клетку вниз
+            x_71 = (col_71 - 2 + 4 - 1.5 - 1 + 0.25) * cell_width_mm * mm  # на 2.5 клетки влево + 1/4 клетки вправо
+            y_71 = (297 - (row_71 * cell_height_mm + cell_height_mm) - 0.25 * cell_height_mm - 1 * cell_height_mm - 0.5 * cell_height_mm) * mm  # на 1 клетку вниз + 0.5 клетки вверх
             
             overlay_canvas.drawImage("logo.png", x_71, y_71, 
                                    width=logo_scaled_width*mm, height=logo_scaled_height*mm,
@@ -748,7 +765,7 @@ def fix_html_layout(template_name='contratto'):
     @page {
         size: A4;
         margin: 1cm;           /* 1cm отступ от края страницы до текста */
-        border: 4pt solid #0d0d0d;  /* Чёрная рамка вокруг текста (увеличена на 1pt) */
+        border: 4pt solid #1c4587;  /* Чёрная рамка вокруг текста (увеличена на 1pt) */
         padding: 0;            /* Никаких дополнительных отступов */
     }
     
@@ -783,7 +800,7 @@ def fix_html_layout(template_name='contratto'):
     @page {
         size: A4;
         margin: 1cm;  /* Отступ как в garanzia */
-        border: 2pt solid #0d0d0d;  /* Чёрная рамка (на 2pt тоньше чем garanzia) */
+        border: 2pt solid #1c4587;  /* Чёрная рамка (на 2pt тоньше чем garanzia) */
         padding: 0;  /* Отступ как в garanzia */
     }
     
@@ -908,7 +925,7 @@ def fix_html_layout(template_name='contratto'):
     @page {
         size: A4;
         margin: 1cm;  /* Отступ как в garanzia */
-        border: 4pt solid #0d0d0d;  /* Чёрная рамка как в garanzia (4pt) */
+        border: 4pt solid #1c4587;  /* Чёрная рамка как в garanzia (4pt) */
         padding: 0;  /* Отступ как в garanzia */
     }
     
