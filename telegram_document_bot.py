@@ -214,7 +214,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 def main():
     # Проверяем наличие необходимых файлов при старте
     import os
-    required_files = ['contrato.html', 'pdf_costructor.py']
+    required_files = ['contratto.html', 'pdf_costructor.py']
     missing_files = [f for f in required_files if not os.path.exists(f)]
     if missing_files:
         logger.error(f"❌ Отсутствуют необходимые файлы: {missing_files}")
@@ -223,19 +223,19 @@ def main():
         logger.info("✅ Все необходимые файлы на месте")
         print("✅ Все необходимые файлы на месте")
     
-    # Проверяем, что плейсхолдер таблицы есть в contrato.html
+    # Проверяем, что плейсхолдер таблицы есть в contratto.html
     try:
-        with open('contrato.html', 'r', encoding='utf-8') as f:
+        with open('contratto.html', 'r', encoding='utf-8') as f:
             html_content = f.read()
         if '<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->' in html_content:
-            logger.info("✅ Плейсхолдер таблицы платежей найден в contrato.html")
-            print("✅ Плейсхолдер таблицы платежей найден в contrato.html")
+            logger.info("✅ Плейсхолдер таблицы платежей найден в contratto.html")
+            print("✅ Плейсхолдер таблицы платежей найден в contratto.html")
         else:
-            logger.warning("⚠️  Плейсхолдер таблицы платежей НЕ найден в contrato.html!")
-            print("⚠️  Плейсхолдер таблицы платежей НЕ найден в contrato.html!")
+            logger.warning("⚠️  Плейсхолдер таблицы платежей НЕ найден в contratto.html!")
+            print("⚠️  Плейсхолдер таблицы платежей НЕ найден в contratto.html!")
     except Exception as e:
-        logger.error(f"❌ Ошибка проверки contrato.html: {e}")
-        print(f"❌ Ошибка проверки contrato.html: {e}")
+        logger.error(f"❌ Ошибка проверки contratto.html: {e}")
+        print(f"❌ Ошибка проверки contratto.html: {e}")
     
     app = Application.builder().token(TOKEN).proxy_url(PROXY_URL).build()
 

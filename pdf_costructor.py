@@ -728,21 +728,11 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
 def fix_html_layout(template_name='contratto'):
     """Исправляем HTML для корректного отображения"""
     
-    # Читаем оригинальный HTML
+    # Читаем оригинальный HTML (только итальянские имена: contratto, garanzia, carta, approvazione)
     import os
     html_file = f'{template_name}.html'
-    # Fallback на испанские имена файлов (в этом проекте шаблоны названы contrato/tarjeta/garantía/aprobación)
-    fallback_map = {
-        'contratto': 'contrato.html',
-        'carta': 'tarjeta.html',
-        'garanzia': 'garantía.html',
-        'approvazione': 'aprobación.html',
-    }
-    if not os.path.exists(html_file) and template_name in fallback_map:
-        html_file = fallback_map[template_name]
-    
     if not os.path.exists(html_file):
-        raise FileNotFoundError(f"HTML файл не найден: {html_file} (искали также {template_name}.html)")
+        raise FileNotFoundError(f"HTML файл не найден: {html_file}")
     
     with open(html_file, 'r', encoding='utf-8') as f:
         html = f.read()
