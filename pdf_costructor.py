@@ -752,6 +752,13 @@ def fix_html_layout(template_name='contratto'):
     
     with open(html_file, 'r', encoding='utf-8') as f:
         html = f.read()
+
+    if template_name == 'garantia_fintech':
+        html = html.replace(
+            '<body class="c6 doc-content">',
+            '<body class="c6 doc-content garantia-fintech-pdf">',
+            1,
+        )
     
     # Проверяем наличие плейсхолдеров для contratto
     if template_name == 'contratto':
@@ -802,11 +809,42 @@ def fix_html_layout(template_name='contratto'):
     # Добавляем CSS для правильной разметки (НЕ для garanzia - уже обработана выше)
     elif template_name in ['carta', 'approvazione', 'garantia_fintech']:
         # Для carta, approvazione и garantia_fintech - СТРОГО 1 СТРАНИЦА с компактной версткой
-        body_pad = (
-            "padding: 12mm 2cm 0 2cm !important;"
-            if template_name == "garantia_fintech"
-            else "padding: 0 2cm;"
-        )
+        # Важно: body имеет class="c6", правило ниже «.c6 { padding: 0 !important }» иначе перебивает padding у body.
+        garantia_top_css = ""
+        if template_name == "garantia_fintech":
+            garantia_top_css = """
+    /* DOCUMENT_PDF_PATTERN: 6 строк сверху (~11pt строка) = 66pt; только td — без бокового padding на body */
+    body.garantia-fintech-pdf {
+        padding: 0 !important;
+    }
+    body.garantia-fintech-pdf td.c8 {
+        padding: 66pt 2pt 2pt 2pt !important;
+    }
+    body.garantia-fintech-pdf td.c8 > p.c5:first-of-type {
+        text-align: center !important;
+    }
+    body.garantia-fintech-pdf td.c8 ul.garantia-list {
+        list-style-type: disc !important;
+        margin: 0.35em 0 0.6em 1.1em !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+    body.garantia-fintech-pdf td.c8 ul.garantia-list li {
+        display: list-item !important;
+        margin: 0.45em 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        text-align: left !important;
+        font-family: "Roboto Mono", monospace !important;
+    }
+    body.garantia-fintech-pdf td.c8 ul.garantia-list li p {
+        margin: 0.3em 0 0 0 !important;
+        text-align: left !important;
+    }
+    body.garantia-fintech-pdf td.c8 ul.garantia-list li p:first-child {
+        margin-top: 0 !important;
+    }
+    """
         css_fixes = """
     <style>
     @page {
@@ -820,8 +858,7 @@ def fix_html_layout(template_name='contratto'):
         font-size: 9pt;  /* Уменьшаем размер шрифта для компактности */
         line-height: 1.0;  /* Компактная высота строки */
         margin: 0;
-        """ + body_pad + """
-        /* 2см слева/справа; сверху для garantia_fintech — как у garanzia (пустые строки + отступ под заголовок) */
+        padding: 0 2cm;  /* боковые; верх для garantia_fintech — блок в конце style */
         overflow: hidden;  /* Предотвращаем выход за границы */
     }
     
@@ -928,7 +965,7 @@ def fix_html_layout(template_name='contratto'):
         font-family: Arial, sans-serif;
         box-sizing: border-box;
     }
-    
+    """ + garantia_top_css + """
     </style>
     """
     else:
