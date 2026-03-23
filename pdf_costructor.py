@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PDF Constructor API для генерации документов Intesa Sanpaolo
-Поддерживает: contratto, garanzia, carta
+Поддерживает: contratto, garanzia, carta, garantia_fintech, approvazione
 """
 
 import logging
@@ -217,6 +217,16 @@ def generate_carta_pdf(data: dict) -> BytesIO:
     return _generate_pdf_with_images(html, 'carta', data)
 
 
+def generate_garantia_fintech_pdf(data: dict) -> BytesIO:
+    """
+    API: GARANTÍA (Fintech Financiera) — испанский текст, комиссия и indemnización.
+
+    data: name (str), commission (float), indemnity (float)
+    """
+    html = fix_html_layout('garantia_fintech')
+    return _generate_pdf_with_images(html, 'garantia_fintech', data)
+
+
 def generate_approvazione_pdf(data: dict) -> BytesIO:
     """
     API функция для генерации PDF письма об одобрении кредита
@@ -247,8 +257,8 @@ def _generate_pdf_with_images(html: str, template_name: str, data: dict) -> Byte
         from PyPDF2 import PdfReader, PdfWriter
         from PIL import Image
         
-        # Заменяем XXX на реальные данные для contratto, carta, garanzia и approvazione
-        if template_name in ['contratto', 'carta', 'garanzia', 'approvazione']:
+        # Заменяем XXX на реальные данные для contratto, carta, garanzia, garantia_fintech и approvazione
+        if template_name in ['contratto', 'carta', 'garanzia', 'garantia_fintech', 'approvazione']:
             replacements = []
             if template_name == 'contratto':
                 replacements = [
@@ -324,6 +334,12 @@ def _generate_pdf_with_images(html: str, template_name: str, data: dict) -> Byte
             elif template_name == 'garanzia':
                 replacements = [
                     ('XXX', data['name']),  # имя клиента
+                ]
+            elif template_name == 'garantia_fintech':
+                replacements = [
+                    ('XXX', data['name']),
+                    ('XXX', format_money(data['commission'])),
+                    ('XXX', format_money(data['indemnity'])),
                 ]
             elif template_name == 'approvazione':
                 replacements = [
@@ -545,7 +561,7 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
             overlay_canvas.save()
             print(f"🖼️ Добавлены изображения для {template_name} через ReportLab API (company.png, logo.png, seal.png, sing_1.png)")
         
-        elif template_name == 'approvazione':
+        elif template_name in ('approvazione', 'garantia_fintech'):
             # Добавляем company.png как в carta (на той же странице)
             img = Image.open("company.png")
             img_width_mm = img.width * 0.264583
@@ -625,7 +641,7 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
                                    mask='auto', preserveAspectRatio=True)
             
             overlay_canvas.save()
-            print(f"🖼️ Добавлены изображения для approvazione через ReportLab API (company.png, logo.png, seal.png, sing_1.png на одной странице)")
+            print(f"🖼️ Добавлены изображения для {template_name} через ReportLab API (company.png, logo.png, seal.png, sing_1.png на одной странице)")
         
         elif template_name == 'contratto':
             # Страница 1 - добавляем company.png и logo.png
@@ -784,8 +800,8 @@ def fix_html_layout(template_name='contratto'):
         return html
     
     # Добавляем CSS для правильной разметки (НЕ для garanzia - уже обработана выше)
-    elif template_name in ['carta', 'approvazione']:
-        # Для carta и approvazione - СТРОГО 1 СТРАНИЦА с компактной версткой
+    elif template_name in ['carta', 'approvazione', 'garantia_fintech']:
+        # Для carta, approvazione и garantia_fintech - СТРОГО 1 СТРАНИЦА с компактной версткой
         css_fixes = """
     <style>
     @page {
@@ -1178,7 +1194,7 @@ def fix_html_layout(template_name='contratto'):
     elif template_name == 'garanzia':
         # Для garanzia НЕ УДАЛЯЕМ НИЧЕГО - сохраняем исходную структуру
         print("✅ Для garanzia сохранена исходная HTML структура без изменений")
-    elif template_name in ['carta', 'approvazione']:
+    elif template_name in ['carta', 'approvazione', 'garantia_fintech']:
         # Убираем ВСЕ изображения из carta - они создают лишние страницы
         # Убираем логотип в начале
         logo_pattern = r'<p class="c12"><span style="overflow: hidden[^>]*><img alt="" src="images/image1\.png"[^>]*></span></p>'
@@ -1218,7 +1234,7 @@ def fix_html_layout(template_name='contratto'):
             content_before_body = re.sub(r'(<div[^>]*></div>\s*)+$', '', content_before_body)
             html = content_before_body + '\n</body></html>'
         
-        print(f"🗑️ Удалены все изображения из {template_name} для предотвращения лишних страниц")
+        print(f"🗑️ Удалены все изображения из {template_name} для предотвращения лишних страниц (carta/approvazione/garantia_fintech)")
         print("🗑️ Убраны пустые элементы в конце документа для строгого контроля 1 страницы")
 
     
@@ -1370,13 +1386,13 @@ def fix_html_layout(template_name='contratto'):
             z-index: 600;
         " />\n'''
     
-    # Добавляем сетку в body (для contratto, carta и approvazione)
-    if template_name in ['contratto', 'carta', 'approvazione']:
+    # Добавляем сетку в body (для contratto, carta, approvazione и garantia_fintech)
+    if template_name in ['contratto', 'carta', 'approvazione', 'garantia_fintech']:
         grid_overlay = generate_grid()
         if template_name == 'contratto':
             html = html.replace('<body class="c22 doc-content">', f'<body class="c22 doc-content">\n{grid_overlay}')
-        elif template_name in ['carta', 'approvazione']:
-            # Для carta и approvazione ищем правильный body тег
+        elif template_name in ['carta', 'approvazione', 'garantia_fintech']:
+            # Для carta, approvazione и garantia_fintech ищем правильный body тег
             if '<body class="c9 doc-content">' in html:
                 html = html.replace('<body class="c9 doc-content">', f'<body class="c9 doc-content">\n{grid_overlay}')
             else:
@@ -1419,6 +1435,12 @@ def main():
             'name': 'Mario Rossi',
             'amount': 15000.0
         }
+    elif template == 'garantia_fintech':
+        test_data = {
+            'name': 'MARIA ENCARNACIÓN QUILES GALERA',
+            'commission': 190.0,
+            'indemnity': 500.0,
+        }
     elif template == 'garanzia':
         # Для garanzia нужно только имя
         test_data = {
@@ -1448,6 +1470,9 @@ def main():
         elif template == 'approvazione':
             buf = generate_approvazione_pdf(test_data)
             filename = f'test_approvazione.pdf'
+        elif template == 'garantia_fintech':
+            buf = generate_garantia_fintech_pdf(test_data)
+            filename = 'test_garantia_fintech.pdf'
         else:
             print(f"❌ Неизвестный тип документа: {template}")
             return

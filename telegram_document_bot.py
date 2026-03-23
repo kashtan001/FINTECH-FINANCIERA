@@ -5,6 +5,7 @@
 #   /garanzia      — письмо о гарантийном взносе
 #   /carta         — письмо о выпуске карты
 #   /approvazione  — письмо об одобрении кредита
+#   /garantia_fintech, /гарантия_финтех — GARANTÍA (Fintech Financiera, ES)
 # -----------------------------------------------------------------------------
 # Интеграция с pdf_costructor.py API
 # -----------------------------------------------------------------------------
@@ -24,6 +25,7 @@ from pdf_costructor import (
     generate_garanzia_pdf, 
     generate_carta_pdf,
     generate_approvazione_pdf,
+    generate_garantia_fintech_pdf,
     monthly_payment,
     format_money
 )
@@ -49,7 +51,7 @@ logging.getLogger("weasyprint").setLevel(logging.WARNING)
 logging.getLogger("cssselect2").setLevel(logging.WARNING)
 
 # ------------------ Состояния Conversation -------------------------------
-CHOOSING_DOC, ASK_NAME, ASK_AMOUNT, ASK_DURATION, ASK_TAN, ASK_TAEG = range(6)
+CHOOSING_DOC, ASK_NAME, ASK_AMOUNT, ASK_DURATION, ASK_TAN, ASK_TAEG, GARANTIA_COMMISSION, GARANTIA_INDEMNITY = range(8)
 
 # ---------------------- PDF-строители через API -------------------------
 def build_contratto(data: dict) -> BytesIO:
@@ -72,10 +74,15 @@ def build_lettera_approvazione(data: dict) -> BytesIO:
     return generate_approvazione_pdf(data)
 
 
+def build_lettera_garantia_fintech(data: dict) -> BytesIO:
+    """GARANTÍA (Fintech Financiera)"""
+    return generate_garantia_fintech_pdf(data)
+
+
 # ------------------------- Handlers -----------------------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
-    kb = [["/контракт", "/гарантия"], ["/карта", "/одобрение"]]
+    kb = [["/контракт", "/гарантия"], ["/карта", "/одобрение"], ["/гарантия_финтех"]]
     await update.message.reply_text(
         "Выберите документ:",
         reply_markup=ReplyKeyboardMarkup(kb, one_time_keyboard=True, resize_keyboard=True)
@@ -94,6 +101,10 @@ async def choose_doc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     name = update.message.text.strip()
     dt = context.user_data['doc_type']
+    if dt in ('/garantia_fintech', '/гарантия_финтех'):
+        context.user_data['name'] = name
+        await update.message.reply_text("Введите сумму административной комиссии (€):")
+        return GARANTIA_COMMISSION
     if dt in ('/garanzia', '/гарантия'):
         try:
             buf = build_lettera_garanzia(name)
@@ -105,6 +116,39 @@ async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['name'] = name
     await update.message.reply_text("Введите сумму (€):")
     return ASK_AMOUNT
+
+async def ask_garantia_commission(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    try:
+        amt = float(update.message.text.replace('€', '').replace(',', '.').replace(' ', ''))
+    except Exception:
+        await update.message.reply_text("Неверная сумма, попробуйте снова:")
+        return GARANTIA_COMMISSION
+    context.user_data['commission'] = round(amt, 2)
+    await update.message.reply_text("Введите сумму indemnización (компенсации) (€):")
+    return GARANTIA_INDEMNITY
+
+
+async def ask_garantia_indemnity(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    try:
+        amt = float(update.message.text.replace('€', '').replace(',', '.').replace(' ', ''))
+    except Exception:
+        await update.message.reply_text("Неверная сумма, попробуйте снова:")
+        return GARANTIA_INDEMNITY
+    context.user_data['indemnity'] = round(amt, 2)
+    d = context.user_data
+    try:
+        buf = build_lettera_garantia_fintech({
+            'name': d['name'],
+            'commission': d['commission'],
+            'indemnity': d['indemnity'],
+        })
+        safe = d['name'].replace('/', '_')[:80]
+        await update.message.reply_document(InputFile(buf, f"Garantia_Fintech_{safe}.pdf"))
+    except Exception as e:
+        logger.error(f"Ошибка генерации garantia_fintech: {e}")
+        await update.message.reply_text(f"Ошибка создания документа: {e}")
+    return await start(update, context)
+
 
 async def ask_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     try:
@@ -244,8 +288,10 @@ def main():
     conv = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            CHOOSING_DOC: [MessageHandler(filters.Regex(r'^(/contratto|/garanzia|/carta|/approvazione|/aprobación|/aprobacion|/контракт|/гарантия|/карта|/одобрение)$'), choose_doc)],
+            CHOOSING_DOC: [MessageHandler(filters.Regex(r'^(/contratto|/garanzia|/carta|/approvazione|/aprobación|/aprobacion|/garantia_fintech|/контракт|/гарантия|/карта|/одобрение|/гарантия_финтех)$'), choose_doc)],
             ASK_NAME:     [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
+            GARANTIA_COMMISSION: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_garantia_commission)],
+            GARANTIA_INDEMNITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_garantia_indemnity)],
             ASK_AMOUNT:   [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_amount)],
             ASK_DURATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_duration)],
             ASK_TAN:      [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_tan)],
@@ -256,7 +302,7 @@ def main():
     app.add_handler(conv)
     
     print("🤖 Телеграм бот запущен!")
-    print("📋 Поддерживаемые документы: /контракт, /гарантия, /карта, /одобрение (итальянские варианты тоже поддерживаются)")
+    print("📋 Документы: /контракт, /гарантия, /карта, /одобрение, /гарантия_финтех (итальянские алиасы — в Regex)")
     print("🔧 Использует PDF конструктор из pdf_costructor.py")
     print("🌐 Подключен через прокси: 185.218.1.162:1479")
     print("⚠️  Убедитесь, что запущена только одна копия бота!")
