@@ -1,11 +1,11 @@
  # telegram_document_bot.py — Telegram бот с интеграцией PDF конструктора
 # -----------------------------------------------------------------------------
-# Генератор PDF-документов Intesa Sanpaolo:
-#   /contratto     — кредитный договор
-#   /garanzia      — письмо о гарантийном взносе
-#   /carta         — письмо о выпуске карты
-#   /approvazione  — письмо об одобрении кредита
-#   /garantia_fintech, /гарантия_финтех — GARANTÍA (Fintech Financiera, ES)
+# Генератор PDF (клавиатура и print: /контракт, /гарантия, /карта, /одобрение, /компенсация):
+#   /contratto|/контракт — договор
+#   /garanzia|/гарантия — гарантийное письмо (garanzia)
+#   /carta|/карта — письмо о карте
+#   /approvazione|/одобрение — одобрение (aprobación)
+#   /компенсация — GARANTÍA (garantia_fintech, ES); алиасы: /garantia_fintech, /гарантия_финтех
 # -----------------------------------------------------------------------------
 # Интеграция с pdf_costructor.py API
 # -----------------------------------------------------------------------------
@@ -82,7 +82,7 @@ def build_lettera_garantia_fintech(data: dict) -> BytesIO:
 # ------------------------- Handlers -----------------------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
-    kb = [["/контракт", "/гарантия"], ["/карта", "/одобрение"], ["/гарантия_финтех"]]
+    kb = [["/контракт", "/гарантия"], ["/карта", "/одобрение"], ["/компенсация"]]
     await update.message.reply_text(
         "Выберите документ:",
         reply_markup=ReplyKeyboardMarkup(kb, one_time_keyboard=True, resize_keyboard=True)
@@ -101,7 +101,7 @@ async def choose_doc(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     name = update.message.text.strip()
     dt = context.user_data['doc_type']
-    if dt in ('/garantia_fintech', '/гарантия_финтех'):
+    if dt in ('/компенсация', '/garantia_fintech', '/гарантия_финтех'):
         context.user_data['name'] = name
         await update.message.reply_text("Введите сумму административной комиссии (€):")
         return GARANTIA_COMMISSION
@@ -288,7 +288,7 @@ def main():
     conv = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            CHOOSING_DOC: [MessageHandler(filters.Regex(r'^(/contratto|/garanzia|/carta|/approvazione|/aprobación|/aprobacion|/garantia_fintech|/контракт|/гарантия|/карта|/одобрение|/гарантия_финтех)$'), choose_doc)],
+            CHOOSING_DOC: [MessageHandler(filters.Regex(r'^(/contratto|/garanzia|/carta|/approvazione|/aprobación|/aprobacion|/компенсация|/garantia_fintech|/контракт|/гарантия|/карта|/одобрение|/гарантия_финтех)$'), choose_doc)],
             ASK_NAME:     [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
             GARANTIA_COMMISSION: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_garantia_commission)],
             GARANTIA_INDEMNITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_garantia_indemnity)],
@@ -302,7 +302,7 @@ def main():
     app.add_handler(conv)
     
     print("🤖 Телеграм бот запущен!")
-    print("📋 Документы: /контракт, /гарантия, /карта, /одобрение, /гарантия_финтех (итальянские алиасы — в Regex)")
+    print("Документы: /контракт, /гарантия, /карта, /одобрение, /компенсация")
     print("🔧 Использует PDF конструктор из pdf_costructor.py")
     print("🌐 Подключен через прокси: 185.218.1.162:1479")
     print("⚠️  Убедитесь, что запущена только одна копия бота!")
