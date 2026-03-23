@@ -50,6 +50,12 @@ logging.getLogger("fontTools.ttLib").setLevel(logging.WARNING)
 logging.getLogger("weasyprint").setLevel(logging.WARNING)
 logging.getLogger("cssselect2").setLevel(logging.WARNING)
 
+
+def _safe_filename_part(s: str, max_len: int = 80) -> str:
+    """Имя клиента в имени PDF: / и \\ → _, обрезка (§4.4 DOCUMENT_PDF_PATTERN)."""
+    return s.replace("/", "_").replace("\\", "_")[:max_len]
+
+
 # ------------------ Состояния Conversation -------------------------------
 CHOOSING_DOC, ASK_NAME, ASK_AMOUNT, ASK_DURATION, ASK_TAN, ASK_TAEG, GARANTIA_COMMISSION, GARANTIA_INDEMNITY = range(8)
 
@@ -142,8 +148,8 @@ async def ask_garantia_indemnity(update: Update, context: ContextTypes.DEFAULT_T
             'commission': d['commission'],
             'indemnity': d['indemnity'],
         })
-        safe = d['name'].replace('/', '_')[:80]
-        await update.message.reply_document(InputFile(buf, f"Garantia_Fintech_{safe}.pdf"))
+        safe = _safe_filename_part(d['name'])
+        await update.message.reply_document(InputFile(buf, f"Garantia_{safe}.pdf"))
     except Exception as e:
         logger.error(f"Ошибка генерации garantia_fintech: {e}")
         await update.message.reply_text(f"Ошибка создания документа: {e}")
