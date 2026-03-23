@@ -802,6 +802,11 @@ def fix_html_layout(template_name='contratto'):
     # Добавляем CSS для правильной разметки (НЕ для garanzia - уже обработана выше)
     elif template_name in ['carta', 'approvazione', 'garantia_fintech']:
         # Для carta, approvazione и garantia_fintech - СТРОГО 1 СТРАНИЦА с компактной версткой
+        body_pad = (
+            "padding: 12mm 2cm 0 2cm !important;"
+            if template_name == "garantia_fintech"
+            else "padding: 0 2cm;"
+        )
         css_fixes = """
     <style>
     @page {
@@ -815,7 +820,8 @@ def fix_html_layout(template_name='contratto'):
         font-size: 9pt;  /* Уменьшаем размер шрифта для компактности */
         line-height: 1.0;  /* Компактная высота строки */
         margin: 0;
-        padding: 0 2cm;  /* 2см отступы слева и справа как в garanzia */
+        """ + body_pad + """
+        /* 2см слева/справа; сверху для garantia_fintech — как у garanzia (пустые строки + отступ под заголовок) */
         overflow: hidden;  /* Предотвращаем выход за границы */
     }
     

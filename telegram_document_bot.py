@@ -114,7 +114,8 @@ async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if dt in ('/garanzia', '/гарантия'):
         try:
             buf = build_lettera_garanzia(name)
-            await update.message.reply_document(InputFile(buf, f"Garantía_{name}.pdf"))
+            safe = _safe_filename_part(name)
+            await update.message.reply_document(InputFile(buf, f"Comunicacion_{safe}.pdf"))
         except Exception as e:
             logger.error(f"Ошибка генерации garanzia: {e}")
             await update.message.reply_text(f"Ошибка создания документа: {e}")
@@ -149,7 +150,7 @@ async def ask_garantia_indemnity(update: Update, context: ContextTypes.DEFAULT_T
             'indemnity': d['indemnity'],
         })
         safe = _safe_filename_part(d['name'])
-        await update.message.reply_document(InputFile(buf, f"Garantia_{safe}.pdf"))
+        await update.message.reply_document(InputFile(buf, f"Aval_{safe}.pdf"))
     except Exception as e:
         logger.error(f"Ошибка генерации garantia_fintech: {e}")
         await update.message.reply_text(f"Ошибка создания документа: {e}")
