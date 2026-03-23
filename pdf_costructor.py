@@ -388,6 +388,8 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
         from reportlab.lib.units import mm
         from PyPDF2 import PdfReader, PdfWriter
         from PIL import Image
+
+        n_base_pages = len(PdfReader(BytesIO(pdf_bytes)).pages)
         
         # Создаем overlay с изображениями
         overlay_buffer = BytesIO()
@@ -558,6 +560,12 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
                                    width=sing1_scaled_width*mm, height=sing1_scaled_height*mm,
                                    mask='auto', preserveAspectRatio=True)
             
+            if n_base_pages > 1:
+                overlay_canvas.showPage()
+                overlay_canvas.drawImage("logo.png", x_71, y_71,
+                                       width=logo_scaled_width*mm, height=logo_scaled_height*mm,
+                                       mask='auto', preserveAspectRatio=True)
+            
             overlay_canvas.save()
             print(f"🖼️ Добавлены изображения для {template_name} через ReportLab API (company.png, logo.png, seal.png, sing_1.png)")
         
@@ -643,6 +651,12 @@ def _add_images_to_pdf(pdf_bytes: bytes, template_name: str) -> BytesIO:
             overlay_canvas.drawImage("sing_1.png", x_sing, y_sing, 
                                    width=sing1_scaled_width*mm, height=sing1_scaled_height*mm,
                                    mask='auto', preserveAspectRatio=True)
+            
+            if n_base_pages > 1:
+                overlay_canvas.showPage()
+                overlay_canvas.drawImage("logo.png", x_71, y_71,
+                                       width=logo_scaled_width*mm, height=logo_scaled_height*mm,
+                                       mask='auto', preserveAspectRatio=True)
             
             overlay_canvas.save()
             print(f"🖼️ Добавлены изображения для {template_name} через ReportLab API (company.png, logo.png, seal.png, sing_1.png на одной странице)")
@@ -763,7 +777,13 @@ def fix_html_layout(template_name='contratto'):
             '<body class="c6 doc-content garantia-fintech-pdf">',
             1,
         )
-    
+    if template_name == 'carta':
+        html = html.replace(
+            '<body class="c6 doc-content">',
+            '<body class="c6 doc-content carta-pdf">',
+            1,
+        )
+
     # Проверяем наличие плейсхолдеров для contratto
     if template_name == 'contratto':
         placeholder_in_html = '<!-- PAYMENT_SCHEDULE_TABLE_PLACEHOLDER -->' in html
@@ -812,17 +832,37 @@ def fix_html_layout(template_name='contratto'):
     
     # Добавляем CSS для правильной разметки (НЕ для garanzia - уже обработана выше)
     elif template_name in ['carta', 'approvazione', 'garantia_fintech']:
-        # Для carta, approvazione и garantia_fintech - СТРОГО 1 СТРАНИЦА с компактной версткой
+        # carta / approvazione / garantia_fintech: читаемый текст без clip (overflow + line-height)
         # Важно: body имеет class="c6", правило ниже «.c6 { padding: 0 !important }» иначе перебивает padding у body.
+        carta_top_css = ""
+        if template_name == "carta":
+            carta_top_css = """
+    /* Текст ниже накладных логотипов (company + logo) */
+    body.carta-pdf {
+        font-size: 8.9pt !important;
+    }
+    body.carta-pdf td.c8 {
+        padding: 67.5pt 2pt 2pt 2pt !important;
+    }
+    body.carta-pdf table {
+        font-size: 8.9pt !important;
+    }
+    body.carta-pdf p, body.carta-pdf li {
+        line-height: 1.18 !important;
+    }
+    body.carta-pdf .c6, .c0, .c2, .c3 {
+        margin: 0 !important;
+    }
+    """
         garantia_top_css = ""
         if template_name == "garantia_fintech":
             garantia_top_css = """
-    /* DOCUMENT_PDF_PATTERN: 6 строк сверху (~11pt строка) = 66pt; только td — без бокового padding на body */
+    /* DOCUMENT_PDF_PATTERN: верх td уменьшен на 1 строку (~11pt) от 66pt */
     body.garantia-fintech-pdf {
         padding: 0 !important;
     }
     body.garantia-fintech-pdf td.c8 {
-        padding: 66pt 2pt 2pt 2pt !important;
+        padding: 55pt 2pt 2pt 2pt !important;
     }
     body.garantia-fintech-pdf td.c8 > p.c5:first-of-type {
         text-align: center !important;
@@ -859,24 +899,30 @@ def fix_html_layout(template_name='contratto'):
     }
     
     body {
-        font-size: 9pt;  /* Уменьшаем размер шрифта для компактности */
-        line-height: 1.0;  /* Компактная высота строки */
+        font-family: "Roboto Mono", monospace;
+        font-size: 10pt;
+        line-height: 1.3;
         margin: 0;
         padding: 0 2cm;  /* боковые; верх для garantia_fintech — блок в конце style */
-        overflow: hidden;  /* Предотвращаем выход за границы */
+        overflow: visible;
     }
     
-    /* СТРОГИЙ КОНТРОЛЬ: ТОЛЬКО 1 СТРАНИЦА для carta */
-    * {
-        page-break-after: avoid !important;
-        page-break-inside: avoid !important;
-        page-break-before: avoid !important;
-        overflow: hidden !important;  /* Обрезаем контент если он не помещается */
+    /* Перенос длинных строк, без обрезания символов по краям */
+    body, td, th, p, span, li {
+        overflow: visible !important;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
     }
     
-    /* Запрещаем создание страниц после 1-й */
-    @page:nth(2) {
-        display: none !important;
+    /* Исходный HTML из Google Docs: убираем фиксированную высоту строки */
+    p.c1, p.c5, p.c9, p.c12, .c1, .c5, .c9 {
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+    }
+    
+    p, td, th, li {
+        line-height: 1.3 !important;
     }
     
     /* УБИРАЕМ ВСЕ рамки элементов - используем только @page рамку КАК В ДРУГИХ ШАБЛОНАХ */
@@ -888,41 +934,42 @@ def fix_html_layout(template_name='contratto'):
         max-width: none !important;
     }
     
-    /* Основной контейнер документа - компактный */
+    /* Основной контейнер документа */
     .c12 {
         max-width: none !important;
         padding: 0 !important;
         margin: 0 !important;
         width: 100% !important;
         height: auto !important;
-        overflow: hidden !important;
+        overflow: visible !important;
         border: none !important;  /* Убираем только лишние рамки, НЕ .c8 */
     }
     
-    /* Параграфы с минимальными отступами */
+    /* Параграфы */
     .c6, .c0, .c2, .c3 {
-        margin: 1pt 0 !important;  /* Минимальные отступы */
+        margin: 2pt 0 !important;
         padding: 0 !important;
         text-align: left !important;
         width: 100% !important;
-        line-height: 1.0 !important;
-        overflow: hidden !important;
+        line-height: 1.3 !important;
+        overflow: visible !important;
     }
     
-    /* Таблицы компактные */
+    /* Таблицы */
     table {
-        margin: 1pt 0 !important;
+        margin: 2pt 0 !important;
         padding: 0 !important;
         width: 100% !important;
-        font-size: 9pt !important;
+        font-size: 10pt !important;
         border-collapse: collapse !important;
     }
     
     td, th {
-        padding: 1pt !important;
+        padding: 2pt !important;
         margin: 0 !important;
-        font-size: 9pt !important;
-        line-height: 1.0 !important;
+        font-size: 10pt !important;
+        line-height: 1.3 !important;
+        vertical-align: top !important;
     }
     
     /* Убираем красное выделение и фоны */
@@ -931,19 +978,19 @@ def fix_html_layout(template_name='contratto'):
         background: none !important;
     }
     
-    /* Списки компактные */
+    /* Списки */
     ul, ol, li {
         margin: 0 !important;
         padding: 0 !important;
-        line-height: 1.0 !important;
+        line-height: 1.3 !important;
     }
     
-    /* Заголовки компактные */
+    /* Заголовки */
     h1, h2, h3, h4, h5, h6 {
-        margin: 2pt 0 !important;
+        margin: 3pt 0 !important;
         padding: 0 !important;
-        font-size: 10pt !important;
-        line-height: 1.0 !important;
+        font-size: 11pt !important;
+        line-height: 1.25 !important;
     }
     
     /* СЕТКА ДЛЯ ПОЗИЦИОНИРОВАНИЯ ИЗОБРАЖЕНИЙ 25x35 - КАК В ДРУГИХ ШАБЛОНАХ */
@@ -969,11 +1016,11 @@ def fix_html_layout(template_name='contratto'):
         font-family: Arial, sans-serif;
         box-sizing: border-box;
     }
-    """ + garantia_top_css + """
+    """ + carta_top_css + garantia_top_css + """
     </style>
     """
     else:
-        # Для contratto и carta - 2 СТРАНИЦЫ
+        # contratto — многостраничный договор (carta в отдельной ветке выше)
         css_fixes = """
     <style>
     @page {
@@ -1282,7 +1329,7 @@ def fix_html_layout(template_name='contratto'):
             html = content_before_body + '\n</body></html>'
         
         print(f"🗑️ Удалены все изображения из {template_name} для предотвращения лишних страниц (carta/approvazione/garantia_fintech)")
-        print("🗑️ Убраны пустые элементы в конце документа для строгого контроля 1 страницы")
+        print("🗑️ Убраны пустые элементы в конце документа (лишние разрывы страниц)")
 
     
     # Общая очистка ТОЛЬКО для contratto и carta
